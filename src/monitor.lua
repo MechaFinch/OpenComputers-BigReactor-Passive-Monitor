@@ -39,7 +39,7 @@ local screenWidthChars, screenHeightChars = pg.getCharResolution()
 
 local barWidthChars = 9
 local barWidthPixels = barWidthChars
-local barHeightChars = screenHeightChars - 3
+local barHeightChars = screenHeightChars - 5
 local barHeightPixels = barHeightChars * 2
 
 local graphX = ((barWidthPixels + 2) * 5) + 3
@@ -54,6 +54,7 @@ function main()
 	gpu.setPaletteColor(1, 0xFF0000) -- 1 = red
 	gpu.setPaletteColor(2, 0x0000FF) -- 2 = blue
 	gpu.setPaletteColor(3, 0xFFFFFF) -- 3 = white
+	gpu.setPaletteColor(4, 0x00FF00) -- 4 = green
 
 	gpu.setForeground(0, true)
 	gpu.setBackground(0, true)
@@ -66,10 +67,13 @@ function main()
 	rFuelAmountMax = reac.getFuelAmountMax()
 	
 	-- set the PID loop running
-	-- These parameters are tuned for a 4-high 3x4 reactor with 2 control rods in the center
-	-- surrounded with gelid cryotheum
+	-- These parameters are tuned for a 1.26 MRF/t reactor
 	-- If tuning your own reactor, keep in mind that response time is very very slow
-	rc.setParameters(0.9, 3, 1, 0.005, 0.15)
+	-- err is positive when power is below the target
+	-- positive output will increase power production
+	-- (target, overshoot factor, integral size, derivative size, kp, ki, kd)
+	pg.setTextColor(3)
+	rc.setParameters(0.8, 4, 20, 5, 0.0003, 0.00005, 0.005)
 	rc.start()
 	event.timer(0.2, rc.runPIDStep, math.huge)
 	
@@ -99,15 +103,21 @@ function updateGraphics()
 	ro.shiftGraph(graphX, powerGraphY, graphWidth, graphHeight, 0)
 	ro.shiftGraph(graphX, rodGraphY, graphWidth, graphHeight, 0)
 	
+	ro.plotPoint(graphX, powerGraphY, graphWidth, graphHeight, rc.getOutput(), 2)
 	ro.plotPoint(graphX, powerGraphY, graphWidth, graphHeight, rEnergyStored / 10000000, 1)
-	ro.plotPoint(graphX, rodGraphY, graphWidth, graphHeight, rc.getOutput(), 2)
+	
+	ro.plotPoint(graphX, rodGraphY, graphWidth, graphHeight, 0.5, 3)
+	ro.plotPoint(graphX, rodGraphY, graphWidth, graphHeight, -math.min(0.5, math.max(-0.5, rc.getError())) + 0.5, 1)
+	ro.plotPoint(graphX, rodGraphY, graphWidth, graphHeight, -math.min(0.5, math.max(-0.5, rc.getIntegral() / 5)) + 0.5, 4)
+	ro.plotPoint(graphX, rodGraphY, graphWidth, graphHeight, -math.min(0.5, math.max(-0.5, rc.getDerivative() * 1)) + 0.5, 2)
+	
 	
 	-- status bars
 	local productionPercent = rLastTickEnergy / rMaxTickEnergy
 	local rodsPercent = rc.getOutput()
 	local bufferPercent = rEnergyStored / 10000000
 	local fuelPercent = rFuelAmount / rFuelAmountMax
-	local deltaPercent = (rc.getError() / 2) + 0.5
+	local deltaPercent = (-rc.getError() / 2) + 0.5
 	
 	ro.drawVBar((barWidthPixels + 2) * 0, 2, barWidthPixels, barHeightPixels, fuelPercent, false, 3, 2, 0)
 	ro.drawVBar((barWidthPixels + 2) * 1, 2, barWidthPixels, barHeightPixels, productionPercent, false, 3, 1, 0)
@@ -155,7 +165,17 @@ function updateGraphics()
 	term.write(' ')
 	
 	term.setCursor(1 + (barWidthChars + 2) * 4, 1 + barHeightChars + 1)
-	term.write(string.format("%"..barWidthChars.."d", math.floor(rc.getError() * 100)))
+	term.write(string.format("%"..barWidthChars.."d", math.floor(-rc.getError() * 100)))
+	term.setCursor(1 + barWidthChars + (barWidthChars + 2) * 4, 1 + barHeightChars + 1)
+	term.write(' ')
+	
+	term.setCursor(1 + (barWidthChars + 2) * 4, 1 + barHeightChars + 2)
+	term.write(string.format("%"..barWidthChars.."d", math.floor(-rc.getIntegral() * 100)))
+	term.setCursor(1 + barWidthChars + (barWidthChars + 2) * 4, 1 + barHeightChars + 1)
+	term.write(' ')
+	
+	term.setCursor(1 + (barWidthChars + 2) * 4, 1 + barHeightChars + 3)
+	term.write(string.format("%"..barWidthChars.."d", math.floor(-rc.getDerivative() * 100)))
 	term.setCursor(1 + barWidthChars + (barWidthChars + 2) * 4, 1 + barHeightChars + 1)
 	term.write(' ')
 end

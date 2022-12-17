@@ -14,7 +14,7 @@ local pg = require("pixelgraphics")
 -- plotPoint(int x, int y, int w, int h, float p, int bc)
 -- Plots a point on a graph. 
 function readout.plotPoint(x, y, w, h, p, bc)
-	pg.plot(x + w - 1, y + h - math.floor(p * h), bc)
+	pg.plot(x + w - 1, y + h - 2 - math.floor(p * (h - 2)), bc)
 end
 
 -- initGraph(int x, int y, int w, int h, int oc)
